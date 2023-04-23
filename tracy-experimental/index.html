@@ -109,6 +109,39 @@
             console.log(text);
           };
         })(),
+        packageMetadata: (function() {
+          return function() {
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+            var size = urlParams.get('size');
+            if (size == undefined) {
+              size = 11266828
+            }
+            return {
+              "files": [{
+                  "filename":"/embed.tracy",
+                  "start":0,
+                  "end":size
+              }],
+              "remote_package_size":size
+            };
+          };
+        })(),
+        locateFile: (function() {
+          return function(path, scriptDirectory) {
+            console.log(path);
+            console.log(scriptDirectory);
+            if (path == "Tracy-release.data") {
+              const queryString = window.location.search;
+              const urlParams = new URLSearchParams(queryString);
+              const trace = urlParams.get('trace');
+              console.log(trace);
+              if (trace != undefined)
+                return trace;
+            }
+            return scriptDirectory+path;
+          };
+        })(),
         canvas: (function() {
           var canvas = document.getElementById('canvas');
 
