@@ -100,6 +100,7 @@
     </div>
     </div>
     </div>
+    <div id="emscriptenSection" style="display: none;">
 
     <div id="preload">
       <div class="spinner" id='spinner'></div>
@@ -109,6 +110,7 @@
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    </div>
     </div>
 
     <script src="coi-serviceworker.js"></script>
@@ -263,6 +265,7 @@
 
       function startTracy(input) {
         document.getElementById("inputSection").style.display = 'none';
+        document.getElementById("emscriptenSection").style.display = 'block';
         let file = input.files[0];
         let reader = new FileReader();
         reader.readAsArrayBuffer(file);
