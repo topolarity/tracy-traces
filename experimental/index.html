@@ -141,35 +141,14 @@
         })(),
         packageMetadata: (function() {
           return function() {
-            const queryString = window.location.search;
-            const urlParams = new URLSearchParams(queryString);
-            var size = urlParams.get('size');
-            if (size == undefined) {
-              size = 11266828
-            }
             return {
               "files": [{
                   "filename":"/embed.tracy",
                   "start":0,
-                  "end":size
+                  "end":Module['traceSize'],
               }],
-              "remote_package_size":size
+              "remote_package_size":Module['traceSize'],
             };
-          };
-        })(),
-        locateFile: (function() {
-          return function(path, scriptDirectory) {
-            console.log(path);
-            console.log(scriptDirectory);
-            if (path == "Tracy-release.data") {
-              const queryString = window.location.search;
-              const urlParams = new URLSearchParams(queryString);
-              const trace = urlParams.get('trace');
-              console.log(trace);
-              if (trace != undefined)
-                return trace;
-            }
-            return scriptDirectory+path;
           };
         })(),
         canvas: (function() {
@@ -263,17 +242,38 @@
         });
       }
 
+      const queryString = window.location.search;
+      const urlParams = new URLSearchParams(queryString);
+      const trace = urlParams.get('trace');
+      console.log(trace);
+      if (trace !== null) {
+        document.getElementById("inputSection").style.display = 'none';
+        document.getElementById("emscriptenSection").style.display = 'block';
+        Module['traceSize'] = urlParams.get('size');
+        var dataDownload = download(trace).then(function(data) {
+          console.log('downloaded data file');
+          Module['downloadedData'] = data;
+          var jsDownload = download('Tracy-release.js').then(function(data) {
+            Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
+            addScriptToDom(data);
+          });
+        });
+      }
+
       function startTracy(input) {
         document.getElementById("inputSection").style.display = 'none';
         document.getElementById("emscriptenSection").style.display = 'block';
         let file = input.files[0];
         let reader = new FileReader();
+        reader.onload = function(event) {
+          Module['downloadedData'] = reader.result;
+          Module['traceSize'] = reader.result.byteLength;
+          var jsDownload = download('Tracy-release.js').then(function(data) {
+            Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
+            addScriptToDom(data);
+          });
+        };
         reader.readAsArrayBuffer(file);
-        Module['downloadedData'] = reader.result;
-        var jsDownload = download('Tracy-release.js').then(function(data) {
-          Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
-          addScriptToDom(data);
-        });
       }
 
       function makeTracyURL() {
