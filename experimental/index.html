@@ -73,6 +73,34 @@
     </style>
   </head>
   <body>
+    <div style="height: 100vh" id="inputSection" class="row">
+    <div class="col my-auto">
+    <div width="60%" class="row text-center justify-content-center">
+      <div class="col-7">
+        <label for="formFileLg" class="form-label">Open your <code>.tracy</code> file</label>
+        <input class="form-control form-control-lg" id="tracefile" accept=".tracy" type="file" onchange="startTracy(this)">
+      </div>
+    </div>
+    <br />
+    <div width="60%" class="row justify-content-center">
+    <div class="col-7">
+    <hr />
+    </div>
+    </div>
+    <br />
+    <div width="60%" class="row justify-content-center">
+      <div class="text-center"><p>Create a viewer URL for a <code>.tracy</code> file already on the Web</p></div>
+      <div class="col-auto">
+        <button class="btn btn-primary mb-3" onclick="makeTracyURL()">View Online Trace</button>
+      </div>
+      <div class="col-6">
+        <label for="inputTraceFileURL" class="visually-hidden">URL for .tracy file</label>
+        <input type="text" class="form-control" id="inputTraceFileURL" placeholder="URL for .tracy file">
+      </div>
+    </div>
+    </div>
+    </div>
+
     <div id="preload">
       <div class="spinner" id='spinner'></div>
       <div class="emscripten" id="status">Downloading...</div>
@@ -194,7 +222,73 @@
       };
       addEventListener('resize', resizeHandler);
       resizeHandler();
+
+      function addScriptToDom(scriptCode) {
+        return new Promise(function(resolve, reject) {
+          var script = document.createElement('script');
+          var blob = new Blob([scriptCode], { type: 'application/javascript' });
+          var objectUrl = URL.createObjectURL(blob);
+          script.src = objectUrl;
+          script.onload = function() {
+            console.log('added js script to dom');
+            script.onload = script.onerror = null; // Remove these onload and onerror handlers, because these capture the inputs to the Promise and the input function, which would leak a lot of memory!
+            URL.revokeObjectURL(objectUrl); // Free up the blob. Note that for debugging purposes, this can be useful to comment out to be able to read the sources in debugger.
+            resolve();
+          }
+          script.onerror = function(e) {
+            script.onload = script.onerror = null; // Remove these onload and onerror handlers, because these capture the inputs to the Promise and the input function, which would leak a lot of memory!
+            URL.revokeObjectURL(objectUrl);
+            console.error('script failed to add to dom: ' + e);
+            reject(e.message || "(out of memory?)");
+          }
+          document.body.appendChild(script);
+        });
+      }
+
+      Module.getPreloadedPackage = function(remotePackageName, remotePackageSize) {
+        console.log('Runtime asking for remote package ' + remotePackageName + ', expected size ' + remotePackageSize + 'bytes.');
+        return Module['downloadedData'];
+      }
+
+      function download(url) {
+        return new Promise(function(resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.responseType = 'arraybuffer';
+          xhr.onload = function() { resolve(xhr.response); };
+          xhr.onerror = function(e) { reject(e); };
+          xhr.send(null);
+        });
+      }
+
+      function startTracy(input) {
+        document.getElementById("inputSection").style.display = 'none';
+        let file = input.files[0];
+        let reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        Module['downloadedData'] = reader.result;
+        var jsDownload = download('Tracy-release.js').then(function(data) {
+          Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
+          addScriptToDom(data);
+        });
+      }
+
+      function makeTracyURL() {
+        const input = document.getElementById("inputTraceFileURL");
+        const url = input.value;
+        if (url == "")
+            return;
+        const base_url = "https://topolarity.github.io/tracy-traces/experimental/?trace=";
+        if (url.startsWith(base_url))
+            return;
+
+        download(input.value).then(function(data){
+          console.log(data);
+          window.location.href = base_url.concat(encodeURIComponent(input.value), "&size=", data.byteLength);
+        });
+      }
     </script>
-    <script async type="text/javascript" src="Tracy-release.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>
   </body>
 </html>
