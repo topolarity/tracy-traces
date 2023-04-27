@@ -234,7 +234,12 @@
       function download(url) {
         return new Promise(function(resolve, reject) {
           var xhr = new XMLHttpRequest();
-          xhr.open('GET', url, true);
+          if (url.startsWith("http")) {
+            const proxy_url = 'https://corsproxy.io/?' + encodeURIComponent(url);
+            xhr.open('GET', proxy_url, true);
+          } else {
+            xhr.open('GET', url, true);
+          }
           xhr.responseType = 'arraybuffer';
           xhr.onload = function() { resolve(xhr.response); };
           xhr.onerror = function(e) { reject(e); };
