@@ -96,6 +96,8 @@
       <div class="col-6">
         <label for="inputTraceFileURL" class="visually-hidden">URL for .tracy file</label>
         <input type="text" class="form-control" id="inputTraceFileURL" placeholder="URL for .tracy file">
+        <p id="url-error" class="text-danger" style="display: none;">File download failed. You may have provided an incorrect URL.<br /><br />If the URL is correct after all, loading the file in this webpage may be disallowed by the host's <a href="https://stackoverflow.com/a/35553666">CORS</a> policy.<br />Check your Javascript Console for more information.</p>
+        <p id="specific-url-error" class="text-danger" style="display: none;">File download failed.</p>
       </div>
     </div>
     </div>
@@ -138,6 +140,15 @@
             if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
             console.log(text);
           };
+        })(),
+        locateFile: (function() {
+          return function(path) {
+            if (path == "Tracy-release.data")
+              return path;
+
+            // Append version string to bust cache
+            return path + "?ver=2";
+          }
         })(),
         packageMetadata: (function() {
           return function() {
@@ -227,22 +238,23 @@
       }
 
       Module.getPreloadedPackage = function(remotePackageName, remotePackageSize) {
-        console.log('Runtime asking for remote package ' + remotePackageName + ', expected size ' + remotePackageSize + 'bytes.');
+        console.log('Runtime asking for remote package ' + remotePackageName + ', expected size ' + remotePackageSize + ' bytes.');
         return Module['downloadedData'];
       }
 
       function download(url) {
         return new Promise(function(resolve, reject) {
           var xhr = new XMLHttpRequest();
-          if (url.startsWith("http")) {
-            const proxy_url = 'https://corsproxy.io/?' + encodeURIComponent(url);
-            xhr.open('GET', proxy_url, true);
-          } else {
-            xhr.open('GET', url, true);
-          }
+          xhr.open('GET', url, true);
           xhr.responseType = 'arraybuffer';
-          xhr.onload = function() { resolve(xhr.response); };
-          xhr.onerror = function(e) { reject(e); };
+          xhr.onload = function() {
+            if (xhr.status == 200 || xhr.status == 0) {
+              resolve(xhr.response);
+            } else {
+              reject(xhr);
+            }
+          };
+          xhr.onerror = function(e) { reject(xhr); };
           xhr.send(null);
         });
       }
@@ -250,7 +262,6 @@
       const queryString = window.location.search;
       const urlParams = new URLSearchParams(queryString);
       const trace = urlParams.get('trace');
-      console.log(trace);
       if (trace !== null) {
         document.getElementById("inputSection").style.display = 'none';
         document.getElementById("emscriptenSection").style.display = 'block';
@@ -258,7 +269,7 @@
         var dataDownload = download(trace).then(function(data) {
           console.log('downloaded data file');
           Module['downloadedData'] = data;
-          var jsDownload = download('Tracy-release.js').then(function(data) {
+          var jsDownload = download('Tracy-release.js?ver=2').then(function(data) {
             Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
             addScriptToDom(data);
           });
@@ -273,7 +284,8 @@
         reader.onload = function(event) {
           Module['downloadedData'] = reader.result;
           Module['traceSize'] = reader.result.byteLength;
-          var jsDownload = download('Tracy-release.js').then(function(data) {
+
+          var jsDownload = download('Tracy-release.js?ver=2').then(function(data) {
             Module['mainScriptUrlOrBlob'] = new Blob([data], { type: 'application/javascript' });
             addScriptToDom(data);
           });
@@ -284,15 +296,34 @@
       function makeTracyURL() {
         const input = document.getElementById("inputTraceFileURL");
         const url = input.value;
-        if (url == "")
-            return;
+
+        //const base_url = "http://127.0.0.1:8000/?trace=";
         const base_url = "https://topolarity.github.io/tracy-traces/experimental/?trace=";
         if (url.startsWith(base_url))
-            return;
+          return;
+
+        document.getElementById("url-error").style.display = 'none';
+        document.getElementById("specific-url-error").style.display = 'none';
+
+        if (url == "")
+          return;
+
+        // Side step the CORS restrictions at github.com by computing the redirection for ourselves.
+        const github_url = /^https?:\/\/github\.com\/([^\/\r\n]*)\/([^\/\r\n]*)\/(?:raw|blob)\/([^\?\r\n]*)(?:\?raw=true)?/;
+        const matches = github_url.exec(url);
+        if (matches)
+          input.value = `https://raw.githubusercontent.com/${matches.slice(1).join("/")}`;
 
         download(input.value).then(function(data){
-          console.log(data);
           window.location.href = base_url.concat(encodeURIComponent(input.value), "&size=", data.byteLength);
+        }).catch(function(xhr){
+          if (xhr.status == 0) {
+            document.getElementById("url-error").style.display = 'block';
+          } else {
+            const element = document.getElementById("specific-url-error");
+            element.style.display = 'block';
+            element.innerHTML = "File download failed. (HTTP Error " + xhr.status + ")";
+          }
         });
       }
     </script>
